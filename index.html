@@ -1410,7 +1410,7 @@ const projEnd   = new Date(Math.max.apply(null,_etDates));
 // AUTOMAÇÃO: substituir APENAS o valor da string abaixo (formato YYYY-MM-DD)
 // com a data de atualização dos dados do CROR (campo max "Criado" do xlsx).
 // NÃO usar new Date() sem argumento — isso pega a data de hoje, não do CROR.
-const _CROR_DATA_REF = "2026-04-06"; // MDM1 // ← AUTOMAÇÃO SUBSTITUI APENAS ESTE VALOR
+const _CROR_DATA_REF  = "2026-04-15"; // ← GAS substitui: data do CROR (campo max Criado)
 // Deriva o objeto Date a partir da string — sem timezone issues:
 const dataReferencia = (function(s) {
   var p = s.split("-");
