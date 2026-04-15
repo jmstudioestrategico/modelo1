@@ -2,7 +2,6 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="mdm1-version" content="1776214283305">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MDM1 — Modelo Dash Mannz · MANNZ</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -405,6 +404,7 @@ body {
     if (typeof console !== "undefined" && console.log) {
       console.log("[MDM1] " + sep);
       console.log("[MDM1] RELATÓRIO DE ATUALIZAÇÃO — Dashboard MDM1");
+      console.log("[MDM1] Atualizado em: " + (window._dataRefFmt||"--") + " (fonte: " + (window._dataAtualizadoFonte||"--") + ")");
       console.log("[MDM1] " + sep);
       console.log("[MDM1] CROR (MS Project):");
       console.log("[MDM1]   Linhas de tarefa (ID > 0) : " + r.cror.linhas_id_pos);
@@ -1412,8 +1412,15 @@ const projEnd   = new Date(Math.max.apply(null,_etDates));
 // AUTOMAÇÃO: substituir APENAS o valor da string abaixo (formato YYYY-MM-DD)
 // com a data de atualização dos dados do CROR (campo max "Criado" do xlsx).
 // NÃO usar new Date() sem argumento — isso pega a data de hoje, não do CROR.
-const _CROR_DATA_REF = "2026-04-06"; // MDM1 // ← AUTOMAÇÃO SUBSTITUI APENAS ESTE VALOR
-// Deriva o objeto Date a partir da string — sem timezone issues:
+// ── DATAS DE REFERÊNCIA — cada fonte tem sua própria data ─────────────────────
+// O GAS substitui APENAS o valor entre aspas de cada constante.
+// "Atualizado em" no header/footer mostra a mais recente das três.
+const _CROR_DATA_REF  = "2026-04-06"; // ← GAS substitui: data do CROR (campo max Criado)
+const _ENT_DATA_REF   = "2026-04-06"; // ← GAS substitui: data dos Entregáveis (Controle de Revisões)
+const _ACOES_DATA_REF = "2026-04-06"; // ← GAS substitui: data do Controle de Ações (campo Data)
+
+// Deriva a data de referência do cronograma (usada nos filtros de 90 dias)
+// a partir do CROR — NÃO alterar manualmente:
 const dataReferencia = (function(s) {
   var p = s.split("-");
   return new Date(+p[0], +p[1]-1, +p[2]); // local midnight, sem UTC offset
@@ -1423,30 +1430,52 @@ const dataReferencia = (function(s) {
 // Datas derivadas de dataReferencia — sem conversão UTC para evitar offset de fuso horário
 // Parseia os componentes diretamente da string ISO para garantir a data correta em qualquer fuso
 const _dataRefISO = (function() {
-  // Usa _CROR_DATA_REF diretamente — string pura, sem conversão de timezone
-  var s = _CROR_DATA_REF; // "YYYY-MM-DD" — fonte: campo max "Criado" do CROR xlsx
+  // ── "Atualizado em" = a mais recente entre CROR, Entregáveis e Ações ────
+  function _isoToTs(s) {
+    // Converte "YYYY-MM-DD" para timestamp local sem offset de fuso
+    var p = s.split("-");
+    return new Date(+p[0], +p[1]-1, +p[2]).getTime();
+  }
+  // Encontrar a data mais recente entre as três fontes
+  var fontes = [
+    { label: "CROR",        val: _CROR_DATA_REF  },
+    { label: "Entregáveis", val: _ENT_DATA_REF   },
+    { label: "Ações",       val: _ACOES_DATA_REF },
+  ];
+  var maisRecente = fontes.reduce(function(acc, f) {
+    return _isoToTs(f.val) > _isoToTs(acc.val) ? f : acc;
+  });
+  // dataAtualizado: data mais recente → exibida no header/footer
+  var s = maisRecente.val; // "YYYY-MM-DD"
   var p = s.split("-");
   var y = parseInt(p[0]), m = parseInt(p[1]), d = parseInt(p[2]);
-  // _dataRefISO: "YYYY-MM-DD" para inputs type=date
-  var iso = p[0] + "-" + (m<10?"0":"")+m + "-" + (d<10?"0":"")+d;
-  // _fim90ISO: adiciona 90 dias sem risco de UTC offset
-  var dt90 = new Date(y, m-1, d + 90); // new Date(y,m,d) = local midnight sem UTC offset
+  // _dataRefISO: "YYYY-MM-DD" — baseado no CROR (usado nos filtros de 90 dias)
+  var sc = _CROR_DATA_REF;
+  var pc = sc.split("-");
+  var iso = pc[0] + "-" + (parseInt(pc[1])<10?"0":"")+parseInt(pc[1]) + "-" + (parseInt(pc[2])<10?"0":"")+parseInt(pc[2]);
+  // _fim90ISO: adiciona 90 dias sem risco de UTC offset (base = CROR)
+  var yc = parseInt(pc[0]), mc = parseInt(pc[1]), dc = parseInt(pc[2]);
+  var dt90 = new Date(yc, mc-1, dc + 90);
   var y90 = dt90.getFullYear();
   var m90 = dt90.getMonth()+1;
   var d90 = dt90.getDate();
   window._fim90ISO = y90 + "-" + (m90<10?"0":"")+m90 + "-" + (d90<10?"0":"")+d90;
   window._fim90    = dt90;
-  // Guarda o formato DD/MM/YYYY para atualizar o DOM após o parse completo
+  // _dataRefFmt: data mais recente formatada DD/MM/YYYY → header/footer
   window._dataRefFmt = (d<10?"0":"")+d + "/" + (m<10?"0":"")+m + "/" + y;
+  // Guardar a fonte que gerou a data mais recente (para o console)
+  window._dataAtualizadoFonte = maisRecente.label;
   return iso;
 })();
 // Atualiza "Atualizado em" no header e footer após DOM estar pronto
 document.addEventListener("DOMContentLoaded", function() {
-  var fmt = window._dataRefFmt;
+  var fmt   = window._dataRefFmt;
+  var fonte = window._dataAtualizadoFonte || "";
+  var title = fonte ? "Fonte mais recente: " + fonte : "";
   var h = document.getElementById("header-data-atualizacao");
   var f = document.getElementById("footer-data-atualizacao");
-  if (h) h.textContent = fmt;
-  if (f) f.textContent = fmt;
+  if (h) { h.textContent = fmt; if (title) h.setAttribute("title", title); }
+  if (f) { f.textContent = fmt; if (title) f.setAttribute("title", title); }
 });
 const _fim90ISO = window._fim90ISO;
 const _fim90    = window._fim90;
